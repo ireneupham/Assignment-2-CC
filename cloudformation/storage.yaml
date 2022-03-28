@@ -1,0 +1,96 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Parameters:
+  NetworkStackName:
+    Description: Stack Name of the networking.yaml file
+    Type: String
+    MinLength: 1
+    MaxLength: 255
+    AllowedPattern: '^[a-zA-Z][-a-zA-Z0-9]*$'
+  ServerStackName:
+    Description: Stack Name of the server.yaml file
+    Type: String
+    MinLength: 1
+    MaxLength: 255
+    AllowedPattern: '^[a-zA-Z][-a-zA-Z0-9]*$'
+
+Resources:
+  DBSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: Enable database from WebApp only
+      VpcId: !ImportValue
+        'Fn::Sub': '${NetworkStackName}-VPCId'
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          SourceSecurityGroupId: !ImportValue
+            'Fn::Sub': '${ServerStackName}-InstanceSecurityGroupId'
+
+  RDSDBSubnetGroup: 
+    Type: "AWS::RDS::DBSubnetGroup"
+    Properties: 
+      DBSubnetGroupDescription: description
+      SubnetIds: 
+        - !ImportValue 
+          'Fn::Sub': '${NetworkStackName}-PublicSubnetA'
+        - !ImportValue 
+          'Fn::Sub': '${NetworkStackName}-PublicSubnetB'
+    
+  RDSCluster: 
+    Type: "AWS::RDS::DBCluster"
+    Properties: 
+      DBClusterParameterGroupName: 
+        Ref: RDSDBClusterParameterGroup
+      DBSubnetGroupName: 
+        Ref: RDSDBSubnetGroup
+      Engine: aurora
+      MasterUserPassword: 'password'
+      MasterUsername: 'username'
+      VpcSecurityGroupIds:
+        - !Ref DBSecurityGroup
+    
+  RDSDBClusterParameterGroup: 
+    Type: "AWS::RDS::DBClusterParameterGroup"
+    Properties: 
+      Description: "CloudFormation Sample Aurora Cluster Parameter Group"
+      Family: aurora5.6
+      Parameters: 
+        max_allowed_packet: 1024
+    
+
+  RDSDBParameterGroup:
+    Type: 'AWS::RDS::DBParameterGroup'
+    Properties:
+      Description: CloudFormation Sample Aurora Parameter Group
+      Family: aurora5.6
+  
+  RDSDBInstanceA: 
+    Type: "AWS::RDS::DBInstance"
+    Properties: 
+      AvailabilityZone: 'us-east-1a'
+      DBClusterIdentifier: 
+        Ref: RDSCluster
+      DBInstanceClass: db.t3.small
+      DBParameterGroupName: 
+        Ref: RDSDBParameterGroup
+      DBSubnetGroupName: 
+        Ref: RDSDBSubnetGroup
+      Engine: aurora
+      PubliclyAccessible: "false"
+    
+  RDSDBInstanceB: 
+    Type: 'AWS::RDS::DBInstance'
+    Properties: 
+      AvailabilityZone: 'us-east-1b'
+      DBClusterIdentifier: 
+        Ref: RDSCluster
+      DBInstanceClass: db.t3.small
+      DBParameterGroupName: 
+        Ref: RDSDBParameterGroup
+      DBSubnetGroupName: 
+        Ref: RDSDBSubnetGroup
+      Engine: aurora
+      PubliclyAccessible: "false"
+    
